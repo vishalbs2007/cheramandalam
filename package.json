@@ -1,0 +1,20 @@
+{
+  "name": "finance-chit-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Workspace scripts for finance and chit fund system",
+  "scripts": {
+    "start": "npm run start:backend",
+    "start:backend": "npm --prefix backend start",
+    "start:frontend": "npm --prefix frontend run dev -- --host",
+    "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev -- --host\"",
+    "build": "npm --prefix frontend run build",
+    "preflight": "npm --prefix backend run preflight",
+    "init-db": "npm --prefix backend run init-db",
+    "seed-sample": "npm --prefix backend run seed-sample",
+    "smoke-test": "npm --prefix backend run smoke-test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sidebar: #1e3a5f;
+  --sidebar-accent: #2b4f7d;
+  --surface: #ffffff;
+  --bg: #eef3f9;
+  --text: #1f2937;
+}
+
+* {
+  font-family: 'Manrope', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 15% 10%, #dde8f7 0%, #eef3f9 45%, #f7fafc 100%);
+  color: var(--text);
+}
+
+.status-badge {
+  @apply px-2 py-1 rounded-full text-xs font-semibold;
+}
+
+.status-active,
+.status-paid,
+.status-matured,
+.status-completed {
+  @apply bg-green-100 text-green-700;
+}
+
+.status-overdue,
+.status-defaulted {
+  @apply bg-red-100 text-red-700;
+}
+
+.status-pending,
+.status-upcoming,
+.status-partial {
+  @apply bg-yellow-100 text-yellow-700;
+}
+
+.status-closed {
+  @apply bg-gray-100 text-gray-700;
+}
+
+.card {
+  @apply bg-white shadow-sm rounded-2xl p-4 md:p-5 border border-slate-100;
+}
+
+.table-head {
+  @apply bg-slate-100 text-slate-600 text-xs uppercase tracking-wide;
+}
+
+.input {
+  @apply w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200;
+}
