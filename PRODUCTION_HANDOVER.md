@@ -1,0 +1,130 @@
+# Production Handover
+
+## Deployment Status
+
+- Frontend: Netlify
+- Backend: Render Web Service
+- Database: Managed MySQL-compatible database
+
+## Live Endpoints
+
+- Frontend URL: https://aesthetic-kelpie-ef565f.netlify.app
+- Backend URL: https://cheramandalam-finance.onrender.com
+- Health: https://cheramandalam-finance.onrender.com/health
+- Readiness: https://cheramandalam-finance.onrender.com/health/ready
+
+## Configuration Ownership
+
+- Do not store production secrets in repository files.
+- Set all production environment variables only in Netlify and Render dashboards.
+- Rotate secrets directly in platform dashboards, then redeploy.
+
+## Backend Environment Checklist (Render)
+
+Required keys:
+
+- NODE_ENV=production
+- PORT=10000 (or value provided by Render)
+- DB_HOST
+- DB_PORT
+- DB_USER
+- DB_PASSWORD
+- DB_NAME
+- DB_POOL_SIZE
+- DB_CONNECT_TIMEOUT_MS
+- JWT_SECRET
+- JWT_EXPIRES_IN
+- ADMIN_EMAIL
+- ADMIN_PASSWORD
+- BUSINESS_NAME
+- FRONTEND_ORIGIN=https://aesthetic-kelpie-ef565f.netlify.app
+- REQUEST_BODY_LIMIT
+- API_RATE_LIMIT_WINDOW_MS
+- API_RATE_LIMIT_MAX
+- AUTH_RATE_LIMIT_WINDOW_MS
+- AUTH_RATE_LIMIT_MAX
+- ENABLE_HTTP_LOGGING=true
+- AUTO_INIT_DB=true
+
+Notes:
+
+- Keep JWT_SECRET at least 32 characters.
+- DB credentials must match your managed database service.
+- FRONTEND_ORIGIN can be comma-separated for multiple allowed domains.
+
+## Frontend Environment Checklist (Netlify)
+
+Required key:
+
+- VITE_API_URL=https://cheramandalam-finance.onrender.com/api
+
+## Go-Live Verification
+
+Run after every deploy:
+
+1. Check backend liveness:
+
+```bash
+curl -sS https://cheramandalam-finance.onrender.com/health
+```
+
+2. Check backend readiness:
+
+```bash
+curl -sS https://cheramandalam-finance.onrender.com/health/ready
+```
+
+3. Run smoke test from local machine:
+
+```bash
+SMOKE_BASE_URL=https://cheramandalam-finance.onrender.com npm --prefix backend run smoke-test
+```
+
+4. Manual UI checks:
+- Login
+- Dashboard cards and charts
+- Customers/Loans/RD/FD/Chits/Reports pages
+- PDF export from Reports
+
+## Rollback Plan
+
+### Backend rollback (Render)
+
+1. Open Render service.
+2. Go to Events.
+3. Select last known-good deploy.
+4. Click Rollback.
+5. Re-run health and readiness checks.
+
+### Frontend rollback (Netlify)
+
+1. Open Netlify site.
+2. Go to Deploys.
+3. Select last known-good production deploy.
+4. Publish deploy.
+
+### Database rollback
+
+1. Restore latest known-good SQL backup to recovery database.
+2. Validate schema and key table counts.
+3. Promote restored database credentials in Render env.
+4. Redeploy backend and re-run smoke test.
+
+## Incident Response Quick Steps
+
+- If login fails:
+  - Check Render logs for auth errors.
+  - Confirm ADMIN_EMAIL and ADMIN_PASSWORD env values.
+  - Confirm DB connectivity and table presence through readiness endpoint.
+- If frontend cannot call backend:
+  - Confirm FRONTEND_ORIGIN in Render matches Netlify URL.
+  - Confirm VITE_API_URL in Netlify points to backend /api.
+- If API is down:
+  - Check /health and /health/ready.
+  - Roll back backend deploy if needed.
+
+## Release Operations
+
+- Follow and update RELEASE_CHECKLIST.md per release.
+- Keep daily backups and regular restore drills.
+- Review logs and metrics daily for first week after each major release.
