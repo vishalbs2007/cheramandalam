@@ -28,6 +28,8 @@
 - [ ] JWT secret replaced from default
 - [ ] Admin default password changed after first login
 - [ ] CORS origin restricted to final frontend origin
+- [ ] Security headers enabled (helmet)
+- [ ] API/login rate limits tuned for production traffic
 - [ ] DB user privileges limited for production
 
 ## Business Logic Spot Checks
@@ -45,3 +47,4 @@
 - [ ] Daily database backup plan documented
 - [ ] Error logs monitored
 - [ ] Restore test performed on backup
+- [ ] Health and readiness endpoints monitored (`/health`, `/health/ready`)

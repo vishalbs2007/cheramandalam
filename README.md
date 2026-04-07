@@ -7,7 +7,7 @@ Complete full-stack application for finance operations: customers, loans, recurr
 - Frontend: React + Tailwind + React Router v6 + Axios + Recharts + Lucide + react-hot-toast
 - Backend: Node.js + Express + MySQL (mysql2)
 - Auth: JWT + bcryptjs
-- Utilities: dotenv, cors, moment, uuid, pdfkit
+- Utilities: dotenv, cors, helmet, express-rate-limit, morgan, moment, uuid, pdfkit
 
 ## Project Structure
 
@@ -31,18 +31,28 @@ Complete full-stack application for finance operations: customers, loans, recurr
 Copy from [backend/.env.example](backend/.env.example) and adjust values.
 
 ```env
+NODE_ENV=development
 PORT=5000
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=yourpassword
 DB_NAME=finance_chit_db
+DB_POOL_SIZE=10
+DB_CONNECT_TIMEOUT_MS=10000
 JWT_SECRET=your_secret_key
 JWT_EXPIRES_IN=7d
 ADMIN_EMAIL=admin@finance.com
 ADMIN_PASSWORD=Admin@123
 BUSINESS_NAME=Sri Finance & Chit Funds
 FRONTEND_ORIGIN=http://localhost:5173
+REQUEST_BODY_LIMIT=1mb
+API_RATE_LIMIT_WINDOW_MS=900000
+API_RATE_LIMIT_MAX=600
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_RATE_LIMIT_MAX=20
+ENABLE_HTTP_LOGGING=true
+AUTO_INIT_DB=true
 ```
 
 ## Setup Instructions
@@ -59,6 +69,8 @@ npm start
 ```
 
 Backend runs on `http://localhost:5000`.
+
+`npm start` also runs a safe schema/admin bootstrap on startup (configurable with `AUTO_INIT_DB=false`).
 
 Optional workspace-level commands from project root:
 
@@ -133,6 +145,8 @@ Use admin credentials from `.env`:
 
 Base URL: `http://localhost:5000/api`
 
+Operational endpoints: `/health`, `/health/ready`
+
 - Auth: `/auth/login`, `/auth/me`, `/auth/change-password`
 - Dashboard: `/dashboard/summary`, `/dashboard/due-today`, `/dashboard/recent-transactions`, `/dashboard/monthly-report`, `/dashboard/monthly-report/pdf`
 - Customers: CRUD + soft delete (`is_active=0`)
@@ -158,7 +172,10 @@ Base URL: `http://localhost:5000/api`
 - JWT expiry configurable (default 7d)
 - JWT protection enabled for all routes except `/auth/login`
 - Parameterized SQL queries with mysql2 placeholders
-- CORS restricted using `FRONTEND_ORIGIN`
+- CORS restricted using `FRONTEND_ORIGIN` (supports comma-separated origins)
+- Security headers via `helmet`
+- API rate limiting with stricter limits for `/api/auth/login`
+- Request body size limits configurable with `REQUEST_BODY_LIMIT`
 - Secrets only in backend `.env`
 
 ## Notes
