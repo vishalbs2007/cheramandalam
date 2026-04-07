@@ -1,4 +1,8 @@
 /* eslint-disable no-console */
+const dotenv = require('dotenv');
+
+dotenv.config();
+
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:5000';
 
 const fail = (msg) => {

@@ -9,7 +9,10 @@
     "init-db": "node db/init.js",
     "preflight": "node scripts/preflight.js",
     "seed-sample": "node db/seedSample.js",
-    "smoke-test": "node scripts/smoke-test.js"
+    "smoke-test": "node scripts/smoke-test.js",
+    "business-logic-test": "node scripts/business-logic-test.js",
+    "cleanup-test-data": "node scripts/cleanup-test-data.js",
+    "restore-test": "node scripts/restore-test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
