@@ -1,0 +1,157 @@
+name: Weekly Business Logic Regression
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  business-logic-regression:
+    name: Run Weekly Business Logic Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: finance_chit_regression
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      NODE_ENV: test
+      PORT: 5000
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: finance_chit_regression
+      DB_POOL_SIZE: 10
+      DB_CONNECT_TIMEOUT_MS: 10000
+      JWT_SECRET: weekly_business_logic_ci_secret_32_chars_min
+      JWT_EXPIRES_IN: 7d
+      ADMIN_EMAIL: admin@finance.com
+      ADMIN_PASSWORD: Admin@123!
+      BUSINESS_NAME: Weekly Regression Finance
+      FRONTEND_ORIGIN: http://localhost:5173
+      REQUEST_BODY_LIMIT: 1mb
+      API_RATE_LIMIT_WINDOW_MS: 900000
+      API_RATE_LIMIT_MAX: 600
+      AUTH_RATE_LIMIT_WINDOW_MS: 900000
+      AUTH_RATE_LIMIT_MAX: 100
+      ENABLE_HTTP_LOGGING: false
+      AUTO_INIT_DB: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Run backend preflight
+        run: npm --prefix backend run preflight
+
+      - name: Initialize DB
+        run: npm --prefix backend run init-db
+
+      - name: Start backend
+        run: npm --prefix backend start > backend.log 2>&1 &
+
+      - name: Wait for backend health
+        run: |
+          for i in {1..40}; do
+            if curl -fsS http://localhost:5000/health >/dev/null; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Backend failed to start in time"
+          cat backend.log || true
+          exit 1
+
+      - name: Run business logic regression
+        run: npm --prefix backend run business-logic-test | tee business-logic.log
+
+      - name: Cleanup generated test data
+        if: always()
+        run: npm --prefix backend run cleanup-test-data -- --apply | tee cleanup.log
+
+      - name: Upload regression logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-business-logic-regression-logs
+          path: |
+            backend.log
+            business-logic.log
+            cleanup.log
+          if-no-files-found: ignore
+
+      - name: Show backend logs on failure
+        if: failure()
+        run: cat backend.log || true
+
+  alert-on-failure:
+    name: Raise Alert Issue
+    needs: business-logic-regression
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create or update failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const title = '[Alert] Weekly business logic regression failed';
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const now = new Date().toISOString();
+
+            const issues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const existing = issues.data.find((issue) => issue.title === title);
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: `Weekly business logic regression failed again at ${now}.\n\nWorkflow run: ${runUrl}`
+              });
+              core.info(`Updated existing alert issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body: `Weekly business logic regression failed at ${now}.\n\nWorkflow run: ${runUrl}\n\nPlease investigate API business-rule behavior and recent changes.`
+              });
+              core.info(`Created alert issue #${created.data.number}`);
+            }

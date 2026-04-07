@@ -156,3 +156,23 @@ In GitHub repository settings:
 ### Notification recommendation
 
 - In GitHub notifications/watch settings for this repository, enable Actions notifications so failed runs are visible immediately.
+
+## Weekly Business Logic Regression
+
+GitHub Actions workflow file:
+
+- .github/workflows/weekly-business-logic-regression.yml
+
+This workflow runs weekly on Monday at 03:00 UTC and can be run manually.
+
+### What it covers
+
+- Creates customer, loan, RD, and chit test records through API routes.
+- Validates penalty, auto-close, auto-mature, and chit winner business rules.
+- Cleans up generated test records automatically at the end.
+
+### Failure alerting
+
+- On failure, the workflow creates or updates an issue titled:
+  [Alert] Weekly business logic regression failed
+- Attached workflow artifacts include backend, regression, and cleanup logs.
