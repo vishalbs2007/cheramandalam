@@ -128,3 +128,31 @@ SMOKE_BASE_URL=https://cheramandalam-finance.onrender.com npm --prefix backend r
 - Follow and update RELEASE_CHECKLIST.md per release.
 - Keep daily backups and regular restore drills.
 - Review logs and metrics daily for first week after each major release.
+
+## Nightly Production Smoke Checks
+
+GitHub Actions workflow file:
+
+- .github/workflows/nightly-prod-smoke.yml
+
+This workflow runs nightly and can also be run manually from the Actions tab.
+
+### One-time setup
+
+In GitHub repository settings:
+
+1. Settings -> Secrets and variables -> Actions -> Secrets:
+  - Add PROD_SMOKE_ADMIN_EMAIL
+  - Add PROD_SMOKE_ADMIN_PASSWORD
+2. Optional: Settings -> Secrets and variables -> Actions -> Variables:
+  - Add PROD_SMOKE_BASE_URL if you want a URL other than the default production URL.
+
+### Failure alerting
+
+- On failure, the workflow creates or updates an open issue titled:
+  [Alert] Nightly production smoke test failed
+- This issue includes the workflow run link for quick triage.
+
+### Notification recommendation
+
+- In GitHub notifications/watch settings for this repository, enable Actions notifications so failed runs are visible immediately.
