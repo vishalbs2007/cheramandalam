@@ -262,7 +262,7 @@ const run = async () => {
     const adminPassword = process.env.ADMIN_PASSWORD;
     const adminName = process.env.BUSINESS_NAME || 'Finance Admin';
 
-    const [existing] = await db.execute('SELECT id FROM admins WHERE email = ? LIMIT 1', [adminEmail]);
+    const [existing] = await db.execute('SELECT id, password FROM admins WHERE email = ? LIMIT 1', [adminEmail]);
     if (!existing.length) {
       const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
       await db.execute(
@@ -271,7 +271,22 @@ const run = async () => {
       );
       console.log('Admin user created');
     } else {
-      console.log('Admin user already exists');
+      const admin = existing[0];
+      const matchesConfiguredPassword = adminPassword
+        ? await bcrypt.compare(adminPassword, admin.password)
+        : false;
+
+      if (!matchesConfiguredPassword && adminPassword) {
+        const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
+        await db.execute(
+          'UPDATE admins SET name = ?, password = ?, is_active = 1 WHERE id = ?',
+          [adminName, passwordHash, admin.id]
+        );
+        console.log('Admin credentials synchronized from environment');
+      } else {
+        await db.execute('UPDATE admins SET name = ?, is_active = 1 WHERE id = ?', [adminName, admin.id]);
+        console.log('Admin user already exists');
+      }
     }
 
     console.log('Database initialized successfully');
