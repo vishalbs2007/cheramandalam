@@ -232,7 +232,16 @@ const run = async () => {
       multipleStatements: true
     });
 
-    await db.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\`;`);
+    try {
+      await db.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\`;`);
+    } catch (error) {
+      const permissionErrors = ['ER_DBACCESS_DENIED_ERROR', 'ER_ACCESS_DENIED_ERROR', 'ER_SPECIFIC_ACCESS_DENIED_ERROR'];
+      if (permissionErrors.includes(error.code)) {
+        console.log('CREATE DATABASE skipped due to restricted DB permissions; continuing with existing database');
+      } else {
+        throw error;
+      }
+    }
     await db.query(`USE \`${process.env.DB_NAME}\`;`);
 
     for (const query of createTableQueries) {

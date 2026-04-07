@@ -4,7 +4,7 @@
   "description": "Finance and Chit Fund Management backend",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node db/init.js && node server.js",
     "dev": "nodemon server.js",
     "init-db": "node db/init.js",
     "preflight": "node scripts/preflight.js",
