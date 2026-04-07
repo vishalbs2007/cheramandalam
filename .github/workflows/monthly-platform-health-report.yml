@@ -1,0 +1,316 @@
+name: Monthly Platform Health Report
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  production-smoke:
+    name: Production Smoke Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      SMOKE_BASE_URL: ${{ vars.PROD_SMOKE_BASE_URL != '' && vars.PROD_SMOKE_BASE_URL || 'https://cheramandalam-finance.onrender.com' }}
+      ADMIN_EMAIL: ${{ secrets.PROD_SMOKE_ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.PROD_SMOKE_ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Validate smoke-test credentials
+        shell: bash
+        run: |
+          if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
+            echo "::error::Missing repository secrets PROD_SMOKE_ADMIN_EMAIL or PROD_SMOKE_ADMIN_PASSWORD"
+            exit 1
+          fi
+
+      - name: Run production smoke suite
+        shell: bash
+        run: npm --prefix backend run smoke-test | tee production-smoke.log
+
+      - name: Upload production smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-production-smoke-log
+          path: production-smoke.log
+          if-no-files-found: ignore
+
+  business-regression:
+    name: Business Logic Regression Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: finance_chit_regression
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      NODE_ENV: test
+      PORT: 5000
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: finance_chit_regression
+      DB_POOL_SIZE: 10
+      DB_CONNECT_TIMEOUT_MS: 10000
+      JWT_SECRET: monthly_business_logic_ci_secret_32_chars_min
+      JWT_EXPIRES_IN: 7d
+      ADMIN_EMAIL: admin@finance.com
+      ADMIN_PASSWORD: Admin@123!
+      BUSINESS_NAME: Monthly Regression Finance
+      FRONTEND_ORIGIN: http://localhost:5173
+      REQUEST_BODY_LIMIT: 1mb
+      API_RATE_LIMIT_WINDOW_MS: 900000
+      API_RATE_LIMIT_MAX: 600
+      AUTH_RATE_LIMIT_WINDOW_MS: 900000
+      AUTH_RATE_LIMIT_MAX: 100
+      ENABLE_HTTP_LOGGING: false
+      AUTO_INIT_DB: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Run backend preflight
+        run: npm --prefix backend run preflight
+
+      - name: Initialize DB
+        run: npm --prefix backend run init-db
+
+      - name: Start backend
+        run: npm --prefix backend start > backend.log 2>&1 &
+
+      - name: Wait for backend health
+        run: |
+          for i in {1..40}; do
+            if curl -fsS http://localhost:5000/health >/dev/null; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Backend failed to start in time"
+          cat backend.log || true
+          exit 1
+
+      - name: Run business logic regression
+        run: npm --prefix backend run business-logic-test | tee business-logic.log
+
+      - name: Cleanup generated test data
+        if: always()
+        run: npm --prefix backend run cleanup-test-data -- --apply | tee cleanup.log
+
+      - name: Upload business regression logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-business-regression-logs
+          path: |
+            backend.log
+            business-logic.log
+            cleanup.log
+          if-no-files-found: ignore
+
+  publish-report:
+    name: Publish Monthly Report
+    needs:
+      - production-smoke
+      - business-regression
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build report markdown
+        id: report
+        shell: bash
+        run: |
+          month="$(date -u +%Y-%m)"
+          timestamp="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          prod_status="${{ needs.production-smoke.result }}"
+          regress_status="${{ needs.business-regression.result }}"
+
+          icon_for() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              cancelled) echo "⚪" ;;
+              skipped) echo "⚠️" ;;
+              *) echo "❔" ;;
+            esac
+          }
+
+          label_for() {
+            case "$1" in
+              success) echo "Passed" ;;
+              failure) echo "Failed" ;;
+              cancelled) echo "Cancelled" ;;
+              skipped) echo "Skipped" ;;
+              *) echo "Unknown" ;;
+            esac
+          }
+
+          overall="success"
+          if [ "$prod_status" != "success" ] || [ "$regress_status" != "success" ]; then
+            overall="failure"
+          fi
+
+          prod_icon="$(icon_for "$prod_status")"
+          regress_icon="$(icon_for "$regress_status")"
+          overall_icon="$(icon_for "$overall")"
+
+          prod_label="$(label_for "$prod_status")"
+          regress_label="$(label_for "$regress_status")"
+          overall_label="$(label_for "$overall")"
+
+          cat > monthly-platform-health-report.md <<EOF
+          # Monthly Platform Health Report (${month})
+
+          **Generated:** ${timestamp}  
+          **Workflow Run:** ${run_url}
+
+          ## Executive Summary
+
+          | Area | Status | Result |
+          | --- | --- | --- |
+          | Production Smoke Suite | ${prod_icon} | ${prod_label} |
+          | Business Logic Regression | ${regress_icon} | ${regress_label} |
+          | Overall Platform Health | ${overall_icon} | ${overall_label} |
+
+          ## Scope Covered
+
+          - Production endpoint smoke checks:
+            - health
+            - login/auth token
+            - protected auth route
+            - dashboard summary
+            - loan/RD/FD calculators
+            - monthly PDF report endpoint
+          - Weekly-style business rule regression in isolated MySQL test environment:
+            - loan penalty and auto-close
+            - RD schedule and auto-mature
+            - chit member collection generation
+            - chit auction winner update
+            - automatic cleanup of generated test data
+
+          ## Evidence
+
+          - Artifacts from this run:
+            - monthly-production-smoke-log
+            - monthly-business-regression-logs
+
+          ## Action Guidance
+
+          - If any section failed:
+            1. Open this run and download artifacts.
+            2. Identify first failing step and related log.
+            3. Roll back recent deploy if production smoke failed.
+            4. Re-run this workflow manually after fix.
+          - If all sections passed:
+            - Keep current release baseline and continue normal monitoring.
+          EOF
+
+          echo "title=[Report] Monthly Platform Health Report - ${month}" >> "$GITHUB_OUTPUT"
+          echo "overall=${overall}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-platform-health-report
+          path: monthly-platform-health-report.md
+
+      - name: Create or update monthly report issue
+        uses: actions/github-script@v7
+        env:
+          REPORT_TITLE: ${{ steps.report.outputs.title }}
+        with:
+          script: |
+            const fs = require('fs');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const title = process.env.REPORT_TITLE;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = fs.readFileSync('monthly-platform-health-report.md', 'utf8');
+
+            const openIssues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const existing = openIssues.data.find((issue) => issue.title === title);
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body
+              });
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: `Monthly report refreshed from workflow run: ${runUrl}`
+              });
+
+              core.info(`Updated monthly report issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body
+              });
+
+              core.info(`Created monthly report issue #${created.data.number}`);
+            }
+
+      - name: Fail workflow if health summary failed
+        if: steps.report.outputs.overall != 'success'
+        run: |
+          echo "One or more monthly health suites failed. See report issue and artifacts for details."
+          exit 1

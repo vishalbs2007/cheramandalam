@@ -176,3 +176,36 @@ This workflow runs weekly on Monday at 03:00 UTC and can be run manually.
 - On failure, the workflow creates or updates an issue titled:
   [Alert] Weekly business logic regression failed
 - Attached workflow artifacts include backend, regression, and cleanup logs.
+
+## Monthly Platform Health Report
+
+GitHub Actions workflow file:
+
+- .github/workflows/monthly-platform-health-report.yml
+
+This workflow runs monthly on day 1 at 04:00 UTC and can also be run manually.
+
+### Report format
+
+Each monthly report issue includes:
+
+- Executive Summary table with pass/fail status for:
+  - Production Smoke Suite
+  - Business Logic Regression Suite
+  - Overall Platform Health
+- Scope Covered section listing validated areas.
+- Evidence section with artifact names.
+- Action Guidance section for failed and passed outcomes.
+
+### Publication behavior
+
+- Creates or updates issue title:
+  [Report] Monthly Platform Health Report - YYYY-MM
+- Uploads report markdown artifact:
+  monthly-platform-health-report
+- Uploads suite logs via existing job artifacts.
+
+### Failure behavior
+
+- If any suite fails, workflow exits with failure after publishing report.
+- Use the report issue + artifacts as the triage entry point.
