@@ -12,6 +12,8 @@ const getIds = async (conn, sql, params) => {
   return rows.map((row) => row.id);
 };
 
+const uniqueIds = (...collections) => [...new Set(collections.flat().filter(Boolean))];
+
 const buildInClause = (column, ids, params) => {
   const placeholders = ids.map(() => '?').join(', ');
   params.push(...ids);
@@ -125,45 +127,70 @@ const run = async () => {
       database: process.env.DB_NAME
     });
 
-    const customerIds = await getIds(
+    const testCustomerIds = await getIds(
       conn,
       "SELECT id FROM customers WHERE name LIKE 'Test Customer %' AND email LIKE 'test.%@example.com'",
       []
     );
 
+    const sampleCustomerIds = await getIds(
+      conn,
+      "SELECT id FROM customers WHERE customer_code IN ('CUS900001', 'CUS900002') OR email LIKE '%.sample@finance.local'",
+      []
+    );
+
+    const customerIds = uniqueIds(testCustomerIds, sampleCustomerIds);
+
     const loanIds = await getIdsWhereIn(
       conn,
       'loans',
       'customer_id',
-      customerIds,
-      'purpose = ?',
-      ['Business logic test']
+      customerIds
     );
 
     const rdIds = await getIdsWhereIn(conn, 'recurring_deposits', 'customer_id', customerIds);
 
-    const chitGroupIds = await getIds(
+    const fdIds = await getIdsWhereIn(conn, 'fixed_deposits', 'customer_id', customerIds);
+
+    const namedChitGroupIds = await getIds(
       conn,
-      "SELECT id FROM chit_groups WHERE group_name LIKE 'Test Chit %'",
+      "SELECT id FROM chit_groups WHERE group_name LIKE 'Test Chit %' OR group_name LIKE 'Sample Chit %'",
       []
     );
 
-    const chitMemberIds = await getIdsWhereIn(conn, 'chit_members', 'chit_group_id', chitGroupIds);
+    const chitMemberIdsByGroup = await getIdsWhereIn(
+      conn,
+      'chit_members',
+      'chit_group_id',
+      namedChitGroupIds
+    );
+
+    const chitMemberIdsByCustomer = await getIdsWhereIn(
+      conn,
+      'chit_members',
+      'customer_id',
+      customerIds
+    );
+
+    const chitMemberIds = uniqueIds(chitMemberIdsByGroup, chitMemberIdsByCustomer);
 
     const counts = {
+      testCustomers: testCustomerIds.length,
+      sampleCustomers: sampleCustomerIds.length,
       customers: customerIds.length,
       loans: loanIds.length,
       loanPayments: await countWhereIn(conn, 'loan_payments', 'loan_id', loanIds),
       rds: rdIds.length,
       rdInstallments: await countWhereIn(conn, 'rd_installments', 'rd_id', rdIds),
-      chitGroups: chitGroupIds.length,
+      fds: fdIds.length,
+      chitGroups: namedChitGroupIds.length,
       chitMembers: chitMemberIds.length,
-      chitCollections: await countChitCollections(conn, chitGroupIds, chitMemberIds),
-      chitAuctions: await countChitAuctions(conn, chitGroupIds, chitMemberIds),
+      chitCollections: await countChitCollections(conn, namedChitGroupIds, chitMemberIds),
+      chitAuctions: await countChitAuctions(conn, namedChitGroupIds, chitMemberIds),
       transactions: await countWhereIn(conn, 'transactions', 'customer_id', customerIds)
     };
 
-    console.log('=== Cleanup Test Data ===');
+    console.log('=== Cleanup Sample/Test Data ===');
     console.log(`Mode: ${apply ? 'APPLY' : 'DRY-RUN'}`);
     Object.entries(counts).forEach(([key, value]) => {
       console.log(`${key}: ${value}`);
@@ -182,10 +209,11 @@ const run = async () => {
       loans: await deleteWhereIn(conn, 'loans', 'id', loanIds),
       rdInstallments: await deleteWhereIn(conn, 'rd_installments', 'rd_id', rdIds),
       rds: await deleteWhereIn(conn, 'recurring_deposits', 'id', rdIds),
-      chitCollections: await deleteChitCollections(conn, chitGroupIds, chitMemberIds),
-      chitAuctions: await deleteChitAuctions(conn, chitGroupIds, chitMemberIds),
+      fds: await deleteWhereIn(conn, 'fixed_deposits', 'id', fdIds),
+      chitCollections: await deleteChitCollections(conn, namedChitGroupIds, chitMemberIds),
+      chitAuctions: await deleteChitAuctions(conn, namedChitGroupIds, chitMemberIds),
       chitMembers: await deleteWhereIn(conn, 'chit_members', 'id', chitMemberIds),
-      chitGroups: await deleteWhereIn(conn, 'chit_groups', 'id', chitGroupIds),
+      chitGroups: await deleteWhereIn(conn, 'chit_groups', 'id', namedChitGroupIds),
       customers: await deleteWhereIn(conn, 'customers', 'id', customerIds)
     };
 

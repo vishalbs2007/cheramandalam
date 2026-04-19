@@ -5,6 +5,7 @@
 
 [build.environment]
   VITE_API_URL = "https://cheramandalam-finance.onrender.com/api"
+  VITE_FIREBASE_AUTH_ENABLED = "true"
 
 [[redirects]]
   from = "/*"

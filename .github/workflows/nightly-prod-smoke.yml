@@ -19,6 +19,7 @@ jobs:
       SMOKE_BASE_URL: ${{ vars.PROD_SMOKE_BASE_URL != '' && vars.PROD_SMOKE_BASE_URL || 'https://cheramandalam-finance.onrender.com' }}
       ADMIN_EMAIL: ${{ secrets.PROD_SMOKE_ADMIN_EMAIL }}
       ADMIN_PASSWORD: ${{ secrets.PROD_SMOKE_ADMIN_PASSWORD }}
+      FIREBASE_WEB_API_KEY: ${{ vars.PROD_SMOKE_FIREBASE_API_KEY }}
 
     steps:
       - name: Checkout

@@ -4,6 +4,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:5000';
+const requestedAuthProvider = String(process.env.SMOKE_AUTH_PROVIDER || 'auto').toLowerCase();
+const firebaseWebApiKey = process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY;
 
 const fail = (msg) => {
   console.error(`FAIL: ${msg}`);
@@ -22,26 +24,85 @@ const expect = (condition, msg) => {
   pass(msg);
 };
 
+const detectAuthProvider = async () => {
+  if (requestedAuthProvider === 'jwt' || requestedAuthProvider === 'firebase') {
+    return requestedAuthProvider;
+  }
+
+  try {
+    const probeRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'probe@example.com',
+        password: 'invalid-probe-password'
+      })
+    });
+
+    if (probeRes.status === 400) {
+      const probeData = await probeRes.json().catch(() => ({}));
+      const message = String(probeData?.message || '').toLowerCase();
+      if (message.includes('use firebase sign-in')) {
+        return 'firebase';
+      }
+    }
+  } catch (error) {
+    // If probing fails, continue with jwt to keep backward compatibility.
+  }
+
+  return 'jwt';
+};
+
 const run = async () => {
   try {
     const healthRes = await fetch(`${baseUrl}/health`);
     expect(healthRes.ok, 'Health endpoint reachable');
 
-    const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: process.env.ADMIN_EMAIL || 'admin@finance.com',
-        password: process.env.ADMIN_PASSWORD || 'Admin@123'
-      })
-    });
-    expect(loginRes.ok, 'Login endpoint successful');
+    const authProvider = await detectAuthProvider();
+    pass(`Auth mode detected: ${authProvider}`);
 
-    const loginData = await loginRes.json();
-    expect(Boolean(loginData.token), 'JWT token returned');
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@finance.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
+    let token = '';
+
+    if (authProvider === 'firebase') {
+      expect(Boolean(firebaseWebApiKey), 'Firebase web API key configured for smoke test');
+
+      const firebaseLoginRes = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseWebApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: adminEmail,
+            password: adminPassword,
+            returnSecureToken: true
+          })
+        }
+      );
+      expect(firebaseLoginRes.ok, 'Firebase sign-in successful');
+
+      const firebaseLoginData = await firebaseLoginRes.json();
+      token = String(firebaseLoginData.idToken || '');
+      expect(Boolean(token), 'Firebase ID token returned');
+    } else {
+      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: adminEmail,
+          password: adminPassword
+        })
+      });
+      expect(loginRes.ok, 'Login endpoint successful');
+
+      const loginData = await loginRes.json();
+      token = String(loginData.token || '');
+      expect(Boolean(token), 'JWT token returned');
+    }
 
     const authHeaders = {
-      Authorization: `Bearer ${loginData.token}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
 

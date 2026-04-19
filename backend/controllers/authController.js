@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const { isFirebaseAuthEnabled } = require('../config/firebaseAdmin');
 
 const signToken = (admin) => {
   return jwt.sign(
@@ -16,6 +17,10 @@ const signToken = (admin) => {
 
 const login = async (req, res) => {
   try {
+    if (isFirebaseAuthEnabled()) {
+      return res.status(400).json({ message: 'Use Firebase sign-in from frontend when AUTH_PROVIDER=firebase' });
+    }
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -62,6 +67,10 @@ const me = async (req, res) => {
 
 const changePassword = async (req, res) => {
   try {
+    if (isFirebaseAuthEnabled()) {
+      return res.status(400).json({ message: 'Password changes are managed in Firebase Auth' });
+    }
+
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Current and new password are required' });
