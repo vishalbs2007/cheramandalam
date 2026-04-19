@@ -25,28 +25,15 @@ const required = [
   'DB_PORT',
   'DB_USER',
   'DB_NAME',
+  'JWT_SECRET',
+  'JWT_EXPIRES_IN',
   'ADMIN_EMAIL',
+  'ADMIN_PASSWORD',
   'FRONTEND_ORIGIN'
 ];
 
-const requiredByAuthProvider = {
-  jwt: ['JWT_SECRET', 'JWT_EXPIRES_IN', 'ADMIN_PASSWORD'],
-  firebase: ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY']
-};
-
-const authProvider = String(process.env.AUTH_PROVIDER || 'jwt').toLowerCase();
-
 const run = async () => {
-  const authRequired = requiredByAuthProvider[authProvider];
-  if (!authRequired) {
-    console.log('=== Backend Preflight ===');
-    console.log(`Unsupported AUTH_PROVIDER: ${authProvider}`);
-    console.log('Allowed values: jwt, firebase');
-    process.exitCode = 1;
-    return;
-  }
-
-  const missing = [...required, ...authRequired].filter((key) => !process.env[key]);
+  const missing = required.filter((key) => !process.env[key]);
 
   console.log('=== Backend Preflight ===');
   if (missing.length) {
@@ -55,15 +42,13 @@ const run = async () => {
     return;
   }
 
-  if (authProvider === 'jwt') {
-    const weakSecrets = ['your_secret_key', 'changeme', 'change_me'];
-    const jwtSecret = String(process.env.JWT_SECRET || '');
-    if (weakSecrets.includes(jwtSecret.toLowerCase()) || jwtSecret.length < 32) {
-      console.log('JWT secret check: FAILED');
-      console.log('Reason: JWT_SECRET must be at least 32 characters and not a default placeholder');
-      process.exitCode = 1;
-      return;
-    }
+  const weakSecrets = ['your_secret_key', 'changeme', 'change_me'];
+  const jwtSecret = String(process.env.JWT_SECRET || '');
+  if (weakSecrets.includes(jwtSecret.toLowerCase()) || jwtSecret.length < 32) {
+    console.log('JWT secret check: FAILED');
+    console.log('Reason: JWT_SECRET must be at least 32 characters and not a default placeholder');
+    process.exitCode = 1;
+    return;
   }
 
   const origins = parseOrigins(process.env.FRONTEND_ORIGIN);

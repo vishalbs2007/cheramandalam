@@ -146,7 +146,6 @@ In GitHub repository settings:
   - Add PROD_SMOKE_ADMIN_PASSWORD
 2. Optional: Settings -> Secrets and variables -> Actions -> Variables:
   - Add PROD_SMOKE_BASE_URL if you want a URL other than the default production URL.
-  - Add PROD_SMOKE_FIREBASE_API_KEY when production backend AUTH_PROVIDER is set to firebase.
 
 ### Failure alerting
 

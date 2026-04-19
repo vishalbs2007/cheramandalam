@@ -6,7 +6,7 @@ Complete full-stack application for finance operations: customers, loans, recurr
 
 - Frontend: React + Tailwind + React Router v6 + Axios + Recharts + Lucide + react-hot-toast
 - Backend: Node.js + Express + MySQL (mysql2)
-- Auth: JWT or Firebase Authentication + bcryptjs
+- Auth: JWT + bcryptjs
 - Utilities: dotenv, cors, helmet, express-rate-limit, morgan, moment, uuid, pdfkit
 
 ## Project Structure
@@ -33,7 +33,6 @@ Copy from [backend/.env.example](backend/.env.example) and adjust values.
 ```env
 NODE_ENV=development
 PORT=5000
-AUTH_PROVIDER=jwt
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
@@ -45,7 +44,6 @@ JWT_SECRET=your_secret_key
 JWT_EXPIRES_IN=7d
 ADMIN_EMAIL=admin@finance.com
 ADMIN_PASSWORD=Admin@123
-ALLOWED_ADMIN_EMAILS=admin@finance.com
 BUSINESS_NAME=Sri Finance & Chit Funds
 FRONTEND_ORIGIN=http://localhost:5173
 REQUEST_BODY_LIMIT=1mb
@@ -55,20 +53,7 @@ AUTH_RATE_LIMIT_WINDOW_MS=900000
 AUTH_RATE_LIMIT_MAX=20
 ENABLE_HTTP_LOGGING=true
 AUTO_INIT_DB=true
-FIREBASE_PROJECT_ID=your-firebase-project-id
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk@your-project.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
 ```
-
-### Firebase Auth Mode
-
-To use Firebase authentication instead of JWT/password login:
-
-- Backend: set `AUTH_PROVIDER=firebase` and provide `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`.
-- Frontend: set `VITE_FIREBASE_AUTH_ENABLED=true` and Firebase web config values.
-- Keep `ADMIN_EMAIL` and `ALLOWED_ADMIN_EMAILS` aligned with Firebase user emails allowed to access the admin UI.
-
-When Firebase mode is enabled, `/api/auth/login` is disabled and login happens through Firebase on the frontend.
 
 ## Setup Instructions
 
@@ -133,12 +118,6 @@ cd backend
 npm run smoke-test
 ```
 
-When backend auth mode is Firebase, also provide Firebase web API key while running smoke tests:
-
-```bash
-FIREBASE_WEB_API_KEY=your-firebase-web-api-key npm run smoke-test
-```
-
 For release readiness use [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
 ### 2. Frontend
@@ -152,16 +131,6 @@ npm run dev
 ```
 
 Create `frontend/.env` from [frontend/.env.example](frontend/.env.example) when API base URL differs.
-
-Firebase frontend env keys (required only when `VITE_FIREBASE_AUTH_ENABLED=true`):
-
-```env
-VITE_FIREBASE_AUTH_ENABLED=false
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_APP_ID=
-```
 
 Frontend runs on `http://localhost:5173`.
 

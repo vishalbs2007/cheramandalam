@@ -1,6 +1,5 @@
 const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 
 dotenv.config();
@@ -262,11 +261,10 @@ const run = async () => {
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
     const adminName = process.env.BUSINESS_NAME || 'Finance Admin';
-    const seedPassword = adminPassword || `seed-${crypto.randomUUID()}`;
 
     const [existing] = await db.execute('SELECT id, password FROM admins WHERE email = ? LIMIT 1', [adminEmail]);
     if (!existing.length) {
-      const passwordHash = await bcrypt.hash(seedPassword, saltRounds);
+      const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
       await db.execute(
         'INSERT INTO admins (name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?)',
         [adminName, adminEmail, passwordHash, 'super_admin', 1]
