@@ -7,6 +7,10 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const apply = process.argv.includes('--apply');
 
+const mergeIds = (...lists) => {
+  return [...new Set(lists.flat().filter(Boolean))];
+};
+
 const getIds = async (conn, sql, params) => {
   const [rows] = await conn.execute(sql, params);
   return rows.map((row) => row.id);
@@ -125,30 +129,70 @@ const run = async () => {
       database: process.env.DB_NAME
     });
 
-    const customerIds = await getIds(
+    const testCustomerIds = await getIds(
       conn,
       "SELECT id FROM customers WHERE name LIKE 'Test Customer %' AND email LIKE 'test.%@example.com'",
       []
     );
 
-    const loanIds = await getIdsWhereIn(
+    const sampleCustomerIds = await getIds(
+      conn,
+      "SELECT id FROM customers WHERE customer_code IN ('CUS900001','CUS900002') OR email LIKE '%.sample@finance.local'",
+      []
+    );
+
+    const customerIds = mergeIds(testCustomerIds, sampleCustomerIds);
+
+    const testLoanIds = await getIdsWhereIn(
       conn,
       'loans',
       'customer_id',
-      customerIds,
+      testCustomerIds,
       'purpose = ?',
       ['Business logic test']
     );
 
-    const rdIds = await getIdsWhereIn(conn, 'recurring_deposits', 'customer_id', customerIds);
+    const sampleLoanIds = await getIds(
+      conn,
+      "SELECT id FROM loans WHERE loan_no IN ('LON900001')",
+      []
+    );
 
-    const chitGroupIds = await getIds(
+    const loanIds = mergeIds(testLoanIds, sampleLoanIds);
+
+    const customerRdIds = await getIdsWhereIn(conn, 'recurring_deposits', 'customer_id', customerIds);
+    const sampleRdIds = await getIds(
+      conn,
+      "SELECT id FROM recurring_deposits WHERE rd_no IN ('RD900001')",
+      []
+    );
+    const rdIds = mergeIds(customerRdIds, sampleRdIds);
+
+    const customerFdIds = await getIdsWhereIn(conn, 'fixed_deposits', 'customer_id', customerIds);
+    const sampleFdIds = await getIds(
+      conn,
+      "SELECT id FROM fixed_deposits WHERE fd_no IN ('FD900001')",
+      []
+    );
+    const fdIds = mergeIds(customerFdIds, sampleFdIds);
+
+    const testChitGroupIds = await getIds(
       conn,
       "SELECT id FROM chit_groups WHERE group_name LIKE 'Test Chit %'",
       []
     );
 
-    const chitMemberIds = await getIdsWhereIn(conn, 'chit_members', 'chit_group_id', chitGroupIds);
+    const sampleChitGroupIds = await getIds(
+      conn,
+      "SELECT id FROM chit_groups WHERE group_name = 'Sample Chit A'",
+      []
+    );
+
+    const chitGroupIds = mergeIds(testChitGroupIds, sampleChitGroupIds);
+
+    const chitMemberIdsFromGroups = await getIdsWhereIn(conn, 'chit_members', 'chit_group_id', chitGroupIds);
+    const chitMemberIdsFromCustomers = await getIdsWhereIn(conn, 'chit_members', 'customer_id', customerIds);
+    const chitMemberIds = mergeIds(chitMemberIdsFromGroups, chitMemberIdsFromCustomers);
 
     const counts = {
       customers: customerIds.length,
@@ -156,6 +200,7 @@ const run = async () => {
       loanPayments: await countWhereIn(conn, 'loan_payments', 'loan_id', loanIds),
       rds: rdIds.length,
       rdInstallments: await countWhereIn(conn, 'rd_installments', 'rd_id', rdIds),
+      fds: fdIds.length,
       chitGroups: chitGroupIds.length,
       chitMembers: chitMemberIds.length,
       chitCollections: await countChitCollections(conn, chitGroupIds, chitMemberIds),
@@ -182,6 +227,7 @@ const run = async () => {
       loans: await deleteWhereIn(conn, 'loans', 'id', loanIds),
       rdInstallments: await deleteWhereIn(conn, 'rd_installments', 'rd_id', rdIds),
       rds: await deleteWhereIn(conn, 'recurring_deposits', 'id', rdIds),
+      fds: await deleteWhereIn(conn, 'fixed_deposits', 'id', fdIds),
       chitCollections: await deleteChitCollections(conn, chitGroupIds, chitMemberIds),
       chitAuctions: await deleteChitAuctions(conn, chitGroupIds, chitMemberIds),
       chitMembers: await deleteWhereIn(conn, 'chit_members', 'id', chitMemberIds),

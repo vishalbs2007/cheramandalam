@@ -63,8 +63,10 @@ const listLoans = async (req, res) => {
       "UPDATE loan_payments SET status = 'overdue' WHERE due_date < CURDATE() AND status IN ('pending','partial')"
     );
 
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 20);
+    const parsedPage = Number.parseInt(req.query.page, 10);
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
     const offset = (page - 1) * limit;
 
     const filters = [];
@@ -87,9 +89,9 @@ const listLoans = async (req, res) => {
       )`);
     }
 
-    if (req.query.search) {
+    if (typeof req.query.search === 'string' && req.query.search.trim()) {
       filters.push('(l.loan_no LIKE ? OR c.name LIKE ? OR c.customer_code LIKE ?)');
-      const search = `%${req.query.search}%`;
+      const search = `%${req.query.search.trim()}%`;
       params.push(search, search, search);
     }
 
@@ -102,8 +104,8 @@ const listLoans = async (req, res) => {
       JOIN customers c ON c.id = l.customer_id
       ${whereClause}
       ORDER BY l.id DESC
-      LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
     const [countRows] = await pool.execute(

@@ -3,10 +3,13 @@ const { generateCode } = require('../utils/finance');
 
 const listCustomers = async (req, res) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
+    const parsedPage = Number.parseInt(req.query.page, 10);
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 10;
     const offset = (page - 1) * limit;
-    const search = req.query.search ? `%${req.query.search}%` : '%';
+    const searchText = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const search = `%${searchText}%`;
 
     const [rows] = await pool.execute(
       `SELECT
@@ -18,8 +21,8 @@ const listCustomers = async (req, res) => {
       WHERE c.is_active = 1
         AND (c.name LIKE ? OR c.phone LIKE ? OR c.customer_code LIKE ?)
       ORDER BY c.id DESC
-      LIMIT ? OFFSET ?`,
-      [search, search, search, limit, offset]
+      LIMIT ${limit} OFFSET ${offset}`,
+      [search, search, search]
     );
 
     const [countRows] = await pool.execute(
